@@ -23,3 +23,30 @@ An intelligent tool for generating concise text summaries from video content (Yo
 ```bash
 git clone https://github.com/kullanici-adin/video-summary-tool.git
 cd video-summary-tool
+
+## 🛠️ How It Works
+
+1. User uploads a video or provides a YouTube link.
+2. The backend extracts audio and transcribes it into text using Whisper.
+3. The transcribed text is summarized using a transformer-based language model.
+4. The summary is returned and displayed on the interface.
+
+## 📌 TODO
+
+- [ ] Drag & drop video upload
+- [ ] Summarization model fine-tuning
+- [ ] Multiple language support
+- [ ] PDF / TXT export of summaries
+
+## 🤝 Contributing
+
+Contributions, issues and feature requests are welcome!  
+Feel free to open a pull request or fork the repo.
+
+## 📄 License
+
+MIT License
+
+---
+
+Feel free to contribute or suggest improvements!
