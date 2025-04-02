@@ -23,7 +23,7 @@ An intelligent tool for generating concise text summaries from video content (Yo
 ```bash
 git clone https://github.com/kullanici-adin/video-summary-tool.git
 cd video-summary-tool
-
+```
 ## 🛠️ How It Works
 
 1. User uploads a video or provides a YouTube link.
