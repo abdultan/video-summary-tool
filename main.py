@@ -1,3 +1,4 @@
+from dotenv import load_dotenv
 from fastapi import FastAPI, File, UploadFile
 import uvicorn
 import subprocess
@@ -8,6 +9,9 @@ from pydantic import BaseModel
 import openai
 import hashlib
 from fastapi.middleware.cors import CORSMiddleware
+
+load_dotenv()
+openai.api_key = os.getenv("OPENAI_API_KEY")
 
 app = FastAPI()
 app.add_middleware(
