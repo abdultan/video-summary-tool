@@ -33,9 +33,6 @@ os.makedirs(TRANSCRIPTION_DIR, exist_ok=True)
 
 model = whisper.load_model("medium")
 
-# 🔁 GPT-3.5 özetleme modeli (API erişimi olan model)
-openai.api_key = "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"
-
 # Ön bellek (basit sözlük)
 summary_cache = {}
 
