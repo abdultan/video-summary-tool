@@ -5,6 +5,7 @@ function App() {
   const [transcription, setTranscription] = useState("");
   const [summary, setSummary] = useState("");
   const [filename, setFilename] = useState("");
+  const [language, setLanguage] = useState(""); // ✅ yeni: algılanan dili tut
 
   const handleFileChange = (e) => {
     setVideoFile(e.target.files[0]);
@@ -41,12 +42,16 @@ function App() {
     );
     const transData = await transRes.json();
     setTranscription(transData.text);
+    setLanguage(transData.language); // ✅ dili state'e al
 
     // 4. Özet al
     const sumRes = await fetch("http://localhost:8000/summarize/", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ text: transData.text }),
+      body: JSON.stringify({
+        text: transData.text,
+        language: transData.language,
+      }), // ✅ dili gönder
     });
     const sumData = await sumRes.json();
     setSummary(sumData.summary);

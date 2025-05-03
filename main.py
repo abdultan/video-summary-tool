@@ -16,10 +16,10 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"], # Gerekirse frontend domaini ile sınırla
-    allow_credentials = True,
-    allow_methods = ["*"],
-    allow_headers = ["*"]
+    allow_origins=["*"],  # Gerekirse frontend domaini ile sınırla
+    allow_credentials=True,
+    allow_methods=["*"],
+    allow_headers=["*"]
 )
 
 UPLOAD_DIR = "uploads"
@@ -33,28 +33,36 @@ os.makedirs(TRANSCRIPTION_DIR, exist_ok=True)
 
 model = whisper.load_model("medium")
 
-# Ön bellek (basit sözlük)
+# Basit önbellek
 summary_cache = {}
 
 def get_text_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
-def summarize_with_gpt(text: str):
+def summarize_with_gpt(text: str, language: str):
     text_hash = get_text_hash(text)
     if text_hash in summary_cache:
         return summary_cache[text_hash]
 
+    if language == "tr":
+        system_prompt = "Sen yardımcı bir asistansın. Görevin verilen Türkçe metni özetlemek."
+        user_prompt = f"Lütfen bu metni özetle:\n\n{text}"
+    else:
+        system_prompt = "You are a helpful assistant that summarizes texts."
+        user_prompt = f"Please summarize this text:\n\n{text}"
+
     response = openai.chat.completions.create(
         model="gpt-3.5-turbo",
         messages=[
-            {"role": "system", "content": "You are a helpful assistant that summarizes texts."},
-            {"role": "user", "content": f"Please summarize this text:\n\n{text}"}
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
         ],
         temperature=0.5,
     )
     summary = response.choices[0].message.content
     summary_cache[text_hash] = summary
     return summary
+
 
 @app.post("/upload/")
 async def upload_video(file: UploadFile = File(...)):
@@ -103,19 +111,28 @@ async def transcribe_audio(filename: str):
         except PermissionError:
             return {"error": "Dosya erişim hatası.", "filename": filename}
 
-        result = model.transcribe(str(absolute_audio_path), language="en")
-        return {"message": "Transkripsiyon tamamlandı", "text": result["text"]}
+        # 👇 Oto dil algılam<<<a
+        result = model.transcribe(str(absolute_audio_path))
+        text = result["text"]
+        language = result["language"]
+
+        return {
+            "message": "Transkripsiyon tamamlandı",
+            "text": text,
+            "language": language
+        }
 
     except Exception as e:
         return {"error": str(e)}
 
 class TextRequest(BaseModel):
     text: str
+    language: str
 
 @app.post("/summarize/")
 async def summarize_text(request: TextRequest):
     try:
-        summary = summarize_with_gpt(request.text)
+        summary = summarize_with_gpt(request.text, request.language)
         return {"summary": summary}
     except Exception as e:
         return {"error": str(e)}
