@@ -2,6 +2,7 @@ fastapi
 uvicorn
 python-dotenv
 openai
-whisper
+openai-whisper
 ffmpeg-python
 pydantic
+torch
