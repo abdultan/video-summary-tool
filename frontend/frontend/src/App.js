@@ -1,84 +1,80 @@
 import React, { useState } from "react";
 
 function App() {
-  const [videoFile, setVideoFile] = useState(null);
+  const [file, setFile] = useState(null);
   const [transcription, setTranscription] = useState("");
   const [summary, setSummary] = useState("");
-  const [filename, setFilename] = useState("");
-  const [language, setLanguage] = useState(""); // ✅ yeni: algılanan dili tut
+  const [loading, setLoading] = useState(false);
 
+  // Dosya seçimi
   const handleFileChange = (e) => {
-    setVideoFile(e.target.files[0]);
+    setFile(e.target.files[0]);
   };
 
-  const handleUpload = async () => {
-    if (!videoFile) return;
+  // Form gönderildiğinde
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setLoading(true); // Yükleme başladığında göster
 
     const formData = new FormData();
-    formData.append("file", videoFile);
+    formData.append("file", file);
 
-    // 1. Videoyu yükle
-    const uploadRes = await fetch("http://localhost:8000/upload/", {
-      method: "POST",
-      body: formData,
-    });
-    const uploadData = await uploadRes.json();
-    setFilename(uploadData.filename);
-
-    // 2. Sesi çıkar
-    await fetch(
-      `http://localhost:8000/extract-audio/?filename=${uploadData.filename}`,
-      {
+    try {
+      // 1. Adım: Dosya backend'e gönder
+      const response = await fetch("http://34.38.135.187:8000/upload/", {
         method: "POST",
-      }
-    );
+        body: formData,
+      });
 
-    // 3. Metne çevir
-    const transRes = await fetch(
-      `http://localhost:8000/transcribe-audio/?filename=${uploadData.filename}`,
-      {
+      const data = await response.json();
+      setTranscription(data.transcription); // Transkripti göster
+
+      // 2. Adım: Transkripti özetleme için backend'e gönder
+      await getSummary(data.transcription); // Özetleme
+    } catch (error) {
+      console.error("Hata oluştu:", error);
+    } finally {
+      setLoading(false); // Yükleme tamamlandığında göster
+    }
+  };
+
+  // Özetleme işlemi
+  const getSummary = async (transcription) => {
+    try {
+      const response = await fetch("http://34.38.135.187:8000/summarize/", {
         method: "POST",
-      }
-    );
-    const transData = await transRes.json();
-    setTranscription(transData.text);
-    setLanguage(transData.language); // ✅ dili state'e al
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ text: transcription }), // JSON formatında text gönder
+      });
 
-    // 4. Özet al
-    const sumRes = await fetch("http://localhost:8000/summarize/", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        text: transData.text,
-        language: transData.language,
-      }), // ✅ dili gönder
-    });
-    const sumData = await sumRes.json();
-    setSummary(sumData.summary);
+      const data = await response.json();
+      setSummary(data.summary); // Özet verisini al
+    } catch (error) {
+      console.error("Özetleme hatası:", error);
+    }
   };
 
   return (
-    <div style={{ padding: "2rem", fontFamily: "sans-serif" }}>
-      <h1>🎬 Video Özetleyici</h1>
-      <input type="file" accept="video/*" onChange={handleFileChange} />
-      <button onClick={handleUpload} style={{ marginLeft: "1rem" }}>
-        Yükle ve Özetle
-      </button>
-
+    <div className="App">
+      <h1>Video Özetleme Aracı</h1>
+      <form onSubmit={handleSubmit}>
+        <input type="file" onChange={handleFileChange} />
+        <button type="submit" disabled={loading}>
+          Yükle ve Özetle
+        </button>
+      </form>
+      {loading && <p>Yükleniyor...</p>} {/* Yükleniyor mesajı */}
       {transcription && (
-        <>
-          <h3>🔤 Transkripsiyon</h3>
+        <div>
+          <h2>Transkript:</h2>
           <p>{transcription}</p>
-        </>
+        </div>
       )}
-
       {summary && (
-        <>
-          <h3>📝 Özet</h3>
-          <p>
-            <strong>{summary}</strong>
-          </p>
-        </>
+        <div>
+          <h2>Özet:</h2>
+          <p>{summary}</p>
+        </div>
       )}
     </div>
   );

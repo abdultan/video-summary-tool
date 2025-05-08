@@ -9,6 +9,10 @@ from pydantic import BaseModel
 import openai
 import hashlib
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi import Form
+import yt_dlp
+import uuid
+import shutil
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -137,5 +141,49 @@ async def summarize_text(request: TextRequest):
     except Exception as e:
         return {"error": str(e)}
 
+@app.post("/process-youtube-link/")
+async def process_youtube_link(url: str = Form(...)):
+    try:
+        # 1. YouTube videosunu indir
+        video_id = str(uuid.uuid4())
+        temp_video_path = Path(UPLOAD_DIR) / f"{video_id}.mp4"
+
+        ydl_opts = {
+            'outtmpl': str(temp_video_path),
+            'format': 'mp4/bestaudio/best',
+            'quiet': True
+        }
+        with yt_dlp.YoutubeDL(ydl_opts) as ydl:
+            ydl.download([url])
+
+        # 2. Audio çıkar
+        audio_path = Path(AUDIO_DIR) / f"{video_id}.wav"
+        command = [FFMPEG_PATH, "-i", str(temp_video_path), "-q:a", "0", "-map", "a", str(audio_path)]
+        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
+        if result.returncode != 0:
+            return {"error": "FFmpeg hatası", "stderr": result.stderr}
+
+        # 3. Transkripte et
+        result = model.transcribe(str(audio_path))
+        text = result["text"]
+        language = result["language"]
+
+        # 4. GPT ile özetle
+        summary = summarize_with_gpt(text, language)
+
+        # 5. Temizlik (opsiyonel)
+        try:
+            os.remove(temp_video_path)
+            os.remove(audio_path)
+        except:
+            pass
+
+        return {
+            "summary": summary,
+            "language": language
+        }
+
+    except Exception as e:
+        return {"error": str(e)}
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
