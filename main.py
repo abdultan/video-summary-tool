@@ -25,13 +25,13 @@ app.add_middleware(
 UPLOAD_DIR = "uploads"
 AUDIO_DIR = "audio"
 TRANSCRIPTION_DIR = "transcriptions"
-FFMPEG_PATH = r"C:\\ffmpeg-7.1.1-essentials_build\\ffmpeg-7.1.1-essentials_build\\bin\\ffmpeg.exe"
+FFMPEG_PATH = "ffmpeg"
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(AUDIO_DIR, exist_ok=True)
 os.makedirs(TRANSCRIPTION_DIR, exist_ok=True)
 
-model = whisper.load_model("medium")
+model = whisper.load_model("base")
 
 # Basit önbellek
 summary_cache = {}
