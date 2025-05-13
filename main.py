@@ -147,10 +147,10 @@ async def process_youtube_link(url: str = Form(...)):
         # 1. YouTube videosunu indir
         video_id = str(uuid.uuid4())
         temp_video_path = Path(UPLOAD_DIR) / f"{video_id}.mp4"
-
+        audio_path = Path(AUDIO_DIR) / f"{video_id}.wav"
         ydl_opts = {
-            'outtmpl': str(temp_video_path),
-            'format': 'mp4/bestaudio/best',
+            'outtmpl': str(audio_path),
+            'format': 'bestaudio/best',
             'quiet': True
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
@@ -158,7 +158,11 @@ async def process_youtube_link(url: str = Form(...)):
 
         # 2. Audio çıkar
         audio_path = Path(AUDIO_DIR) / f"{video_id}.wav"
-        command = [FFMPEG_PATH, "-i", str(temp_video_path), "-q:a", "0", "-map", "a", str(audio_path)]
+        command = [
+    FFMPEG_PATH, "-i", str(temp_video_path),
+    "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1",
+        str(audio_path)
+    ]
         result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
         if result.returncode != 0:
             return {"error": "FFmpeg hatası", "stderr": result.stderr}
