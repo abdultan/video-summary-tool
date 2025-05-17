@@ -1,8 +1,8 @@
+transformers
+torch
+openai
+whisper
+yt-dlp
 fastapi
 uvicorn
 python-dotenv
-openai
-openai-whisper
-ffmpeg-python
-pydantic
-torch
