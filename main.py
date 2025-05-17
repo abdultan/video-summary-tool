@@ -1,5 +1,5 @@
 from dotenv import load_dotenv
-from fastapi import FastAPI, File, UploadFile
+from fastapi import FastAPI, File, UploadFile, Form
 import uvicorn
 import subprocess
 from pathlib import Path
@@ -9,10 +9,11 @@ from pydantic import BaseModel
 import openai
 import hashlib
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi import Form
 import yt_dlp
 import uuid
 import shutil
+from transformers import pipeline
+from fastapi.responses import JSONResponse
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -20,7 +21,7 @@ openai.api_key = os.getenv("OPENAI_API_KEY")
 app = FastAPI()
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["*"],  # Gerekirse frontend domaini ile sınırla
+    allow_origins=["*"],
     allow_credentials=True,
     allow_methods=["*"],
     allow_headers=["*"]
@@ -36,8 +37,8 @@ os.makedirs(AUDIO_DIR, exist_ok=True)
 os.makedirs(TRANSCRIPTION_DIR, exist_ok=True)
 
 model = whisper.load_model("base")
+sentiment_pipeline = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
 
-# Basit önbellek
 summary_cache = {}
 
 def get_text_hash(text: str) -> str:
@@ -67,6 +68,30 @@ def summarize_with_gpt(text: str, language: str):
     summary_cache[text_hash] = summary
     return summary
 
+def summarize_with_gpt_and_sentiment(text: str, sentiment_label: str, sentiment_score: float):
+    system_prompt = (
+        "Sen metinleri analiz eden bir yapay zekasın. Sana verilen metni önce özetle. Ardından verilen duygu analiz skoruna göre "
+        "metnin duygusal tonunu değerlendir."
+    )
+    user_prompt = f"""
+Metin:
+{text}
+
+Duygu analizi sonucu:
+{sentiment_label} (Skor: {sentiment_score:.2f})
+
+Lütfen önce metni kısa şekilde özetle. Ardından duygu skoruna göre duygusal ton hakkında yorum yap:
+"""
+
+    response = openai.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": system_prompt},
+            {"role": "user", "content": user_prompt}
+        ],
+        temperature=0.5,
+    )
+    return response.choices[0].message.content
 
 @app.post("/upload/")
 async def upload_video(file: UploadFile = File(...)):
@@ -115,7 +140,6 @@ async def transcribe_audio(filename: str):
         except PermissionError:
             return {"error": "Dosya erişim hatası.", "filename": filename}
 
-        # 👇 Oto dil algılam<<<a
         result = model.transcribe(str(absolute_audio_path))
         text = result["text"]
         language = result["language"]
@@ -141,53 +165,48 @@ async def summarize_text(request: TextRequest):
     except Exception as e:
         return {"error": str(e)}
 
-@app.post("/process-youtube-link/")
-async def process_youtube_link(url: str = Form(...)):
+@app.post("/analyze/")
+async def analyze_youtube_video(url: str = Form(...)):
     try:
-        # 1. YouTube videosunu indir
         video_id = str(uuid.uuid4())
-        temp_video_path = Path(UPLOAD_DIR) / f"{video_id}.mp4"
-        audio_path = Path(AUDIO_DIR) / f"{video_id}.wav"
+        audio_path = Path(AUDIO_DIR) / f"{video_id}.m4a"
+
         ydl_opts = {
+            'format': 'bestaudio[ext=m4a]/bestaudio/best',
             'outtmpl': str(audio_path),
-            'format': 'bestaudio/best',
-            'quiet': True
+            'quiet': True,
+            'noplaylist': True
         }
         with yt_dlp.YoutubeDL(ydl_opts) as ydl:
             ydl.download([url])
 
-        # 2. Audio çıkar
-        audio_path = Path(AUDIO_DIR) / f"{video_id}.wav"
-        command = [
-    FFMPEG_PATH, "-i", str(temp_video_path),
-    "-vn", "-acodec", "pcm_s16le", "-ar", "16000", "-ac", "1",
-        str(audio_path)
-    ]
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-        if result.returncode != 0:
-            return {"error": "FFmpeg hatası", "stderr": result.stderr}
+        if not audio_path.exists():
+            return JSONResponse(content={"error": "Ses dosyası indirilemedi"}, status_code=400)
 
-        # 3. Transkripte et
-        result = model.transcribe(str(audio_path))
-        text = result["text"]
-        language = result["language"]
+        whisper_result = model.transcribe(str(audio_path), language="tr")
+        text = whisper_result["text"]
+        language = whisper_result["language"]
 
-        # 4. GPT ile özetle
-        summary = summarize_with_gpt(text, language)
+        sentiment = sentiment_pipeline(text[:512])[0]
+        sentiment_label = sentiment["label"]
+        sentiment_score = sentiment["score"]
 
-        # 5. Temizlik (opsiyonel)
+        final_summary = summarize_with_gpt_and_sentiment(text, sentiment_label, sentiment_score)
+
         try:
-            os.remove(temp_video_path)
             os.remove(audio_path)
         except:
             pass
 
         return {
-            "summary": summary,
-            "language": language
+            "transcript": text,
+            "summary": final_summary,
+            "sentiment_label": sentiment_label,
+            "sentiment_score": sentiment_score
         }
 
     except Exception as e:
-        return {"error": str(e)}
+        return JSONResponse(content={"error": str(e)}, status_code=500)
+
 if __name__ == "__main__":
     uvicorn.run(app, host="0.0.0.0", port=8000)
