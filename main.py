@@ -14,6 +14,7 @@ import uuid
 import shutil
 from transformers import pipeline
 from fastapi.responses import JSONResponse
+import re
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -93,69 +94,33 @@ Lütfen önce metni kısa şekilde özetle. Ardından duygu skoruna göre duygus
     )
     return response.choices[0].message.content
 
-@app.post("/upload/")
-async def upload_video(file: UploadFile = File(...)):
-    file_path = Path(UPLOAD_DIR) / file.filename
-    with open(file_path, "wb") as buffer:
-        buffer.write(await file.read())
-    return {"message": "Video yüklendi", "filename": file.filename}
-
-@app.post("/extract-audio/")
-async def extract_audio(filename: str):
-    try:
-        video_path = Path(UPLOAD_DIR) / filename
-        audio_path = Path(AUDIO_DIR) / f"{Path(filename).stem}.wav"
-
-        if not video_path.exists():
-            return {"error": "Video dosyası bulunamadı.", "filename": filename}
-
-        if audio_path.exists():
-            return {"message": "Ses dosyası zaten mevcut.", "audio_file": str(audio_path)}
-
-        command = [FFMPEG_PATH, "-i", str(video_path), "-q:a", "0", "-map", "a", str(audio_path)]
-        result = subprocess.run(command, stdout=subprocess.PIPE, stderr=subprocess.PIPE, text=True)
-
-        if result.returncode != 0:
-            return {"error": "FFmpeg çalıştırılırken hata oluştu.", "details": result.stderr}
-
-        if not audio_path.exists():
-            return {"error": "Ses dosyası oluşturulamadı!", "filename": filename}
-
-        return {"message": "Ses çıkarıldı", "audio_file": str(audio_path)}
-
-    except Exception as e:
-        return {"error": "Bilinmeyen bir hata oluştu.", "details": str(e)}
-
-@app.post("/transcribe-audio/")
-async def transcribe_audio(filename: str):
-    try:
-        audio_path = Path(AUDIO_DIR) / f"{Path(filename).stem}.wav"
-        absolute_audio_path = audio_path.resolve(strict=False)
-
-        try:
-            with open(absolute_audio_path, "rb") as f:
-                pass
-        except FileNotFoundError:
-            return {"error": "Ses dosyası bulunamadı.", "filename": filename}
-        except PermissionError:
-            return {"error": "Dosya erişim hatası.", "filename": filename}
-
-        result = model.transcribe(str(absolute_audio_path))
-        text = result["text"]
-        language = result["language"]
-
-        return {
-            "message": "Transkripsiyon tamamlandı",
-            "text": text,
-            "language": language
-        }
-
-    except Exception as e:
-        return {"error": str(e)}
-
 class TextRequest(BaseModel):
     text: str
     language: str
+
+class QARequest(BaseModel):
+    text: str
+    question: str
+
+@app.post("/qa/")
+async def question_answering(request: QARequest):
+    prompt = f"""Aşağıdaki metne göre şu soruyu yanıtla:
+
+Metin:
+{request.text[:3000]}
+
+Soru:
+{request.question}
+"""
+
+    response = openai.chat.completions.create(
+        model="gpt-3.5-turbo",
+        messages=[
+            {"role": "system", "content": "Kullanıcının sorusunu sadece verilen metne göre cevaplayan bir asistansın."},
+            {"role": "user", "content": prompt}
+        ]
+    )
+    return {"answer": response.choices[0].message.content}
 
 @app.post("/summarize/")
 async def summarize_text(request: TextRequest):
@@ -193,6 +158,20 @@ async def analyze_youtube_video(url: str = Form(...)):
 
         final_summary = summarize_with_gpt_and_sentiment(text, sentiment_label, sentiment_score)
 
+        video_type = "Podcast" if len(re.findall(r"\\b(sen|ben|biz|siz)\\b", text.lower())) > 10 else "Tek Anlatıcı"
+        tone = "Tartışmalı" if "kadın" in text.lower() and "erkek" in text.lower() else "Nötr"
+        participants = 2 if "sen" in text.lower() and "ben" in text.lower() else 1
+        title_prompt = f"Bu metin için kısa ve etkili bir başlık öner:\n{text[:1000]}"
+
+        title_response = openai.chat.completions.create(
+            model="gpt-3.5-turbo",
+            messages=[
+                {"role": "system", "content": "Sen bir başlık üreticisisin."},
+                {"role": "user", "content": title_prompt}
+            ]
+        )
+        title = title_response.choices[0].message.content
+
         try:
             os.remove(audio_path)
         except:
@@ -202,7 +181,11 @@ async def analyze_youtube_video(url: str = Form(...)):
             "transcript": text,
             "summary": final_summary,
             "sentiment_label": sentiment_label,
-            "sentiment_score": sentiment_score
+            "sentiment_score": sentiment_score,
+            "video_type": video_type,
+            "tone": tone,
+            "participants": participants,
+            "title": title.strip()
         }
 
     except Exception as e:
