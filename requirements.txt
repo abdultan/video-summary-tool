@@ -1,0 +1,8 @@
+transformers
+torch
+openai
+whisper
+yt-dlp
+fastapi
+uvicorn
+python-dotenv
