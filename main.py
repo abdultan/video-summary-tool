@@ -17,6 +17,7 @@ from fastapi.responses import JSONResponse
 import re
 import asyncio
 import json
+import torch
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -33,14 +34,23 @@ app.add_middleware(
 UPLOAD_DIR = "uploads"
 AUDIO_DIR = "audio"
 TRANSCRIPTION_DIR = "transcriptions"
+CACHE_DIR = "cache"
 FFMPEG_PATH = "ffmpeg"
 
 os.makedirs(UPLOAD_DIR, exist_ok=True)
 os.makedirs(AUDIO_DIR, exist_ok=True)
 os.makedirs(TRANSCRIPTION_DIR, exist_ok=True)
+os.makedirs(CACHE_DIR, exist_ok=True)
 
-model = whisper.load_model("base")
-sentiment_pipeline = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment")
+if torch.cuda.is_available():
+    device = "cuda"
+    print("GPU kullanılıyor!")
+else:
+    device = "cpu"
+    print("CPU kullanılıyor!")
+
+model = whisper.load_model("base", device=device)
+sentiment_pipeline = pipeline("sentiment-analysis", model="nlptown/bert-base-multilingual-uncased-sentiment", device=0 if torch.cuda.is_available() else -1)
 
 summary_cache = {}
 
@@ -49,6 +59,9 @@ active_connections = set()
 
 def get_text_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
+
+def get_url_hash(url: str) -> str:
+    return hashlib.sha256(url.encode("utf-8")).hexdigest()
 
 def summarize_with_gpt(text: str, language: str):
     text_hash = get_text_hash(text)
@@ -112,7 +125,7 @@ async def question_answering(request: QARequest):
     prompt = f"""Aşağıdaki metne göre şu soruyu yanıtla:
 
 Metin:
-{request.text[:3000]}
+{request.text}
 
 Soru:
 {request.question}
@@ -160,6 +173,17 @@ async def broadcast_progress(progress: int, status: str):
 @app.post("/analyze/")
 async def analyze_youtube_video(url: str = Form(...)):
     try:
+        url_hash = get_url_hash(url)
+        cache_file_path = Path(CACHE_DIR) / f"{url_hash}.json"
+
+        # Önbellekte var mı kontrol et
+        if cache_file_path.exists():
+            await broadcast_progress(100, "Önbellekten yükleniyor...")
+            with open(cache_file_path, "r", encoding="utf-8") as f:
+                cached_result = json.load(f)
+            print(f"Önbellekten yüklendi: {url}")
+            return JSONResponse(content=cached_result, status_code=200)
+
         video_id = str(uuid.uuid4())
         audio_path = Path(AUDIO_DIR) / f"{video_id}.m4a"
 
@@ -208,10 +232,8 @@ async def analyze_youtube_video(url: str = Form(...)):
             os.remove(audio_path)
         except:
             pass
-
-        await broadcast_progress(100, "İşlem tamamlandı!")
         
-        return {
+        result_to_cache = {
             "transcript": text,
             "summary": final_summary,
             "sentiment_label": sentiment_label,
@@ -221,6 +243,15 @@ async def analyze_youtube_video(url: str = Form(...)):
             "participants": participants,
             "title": title.strip()
         }
+
+        # Sonuçları önbelleğe kaydet
+        with open(cache_file_path, "w", encoding="utf-8") as f:
+            json.dump(result_to_cache, f, ensure_ascii=False, indent=4)
+        print(f"Önbelleğe kaydedildi: {url}")
+
+        await broadcast_progress(100, "İşlem tamamlandı!")
+        
+        return JSONResponse(content=result_to_cache, status_code=200)
 
     except Exception as e:
         await broadcast_progress(0, f"Hata oluştu: {str(e)}")
