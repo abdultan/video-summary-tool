@@ -1,5 +1,9 @@
 from dotenv import load_dotenv
+<<<<<<< HEAD
 from fastapi import FastAPI, File, UploadFile, Form, WebSocket
+=======
+from fastapi import FastAPI, File, UploadFile, Form
+>>>>>>> 878da1ff5e9189792151c7fcbc83a65882adb951
 import uvicorn
 import subprocess
 from pathlib import Path
@@ -15,8 +19,11 @@ import shutil
 from transformers import pipeline
 from fastapi.responses import JSONResponse
 import re
+<<<<<<< HEAD
 import asyncio
 import json
+=======
+>>>>>>> 878da1ff5e9189792151c7fcbc83a65882adb951
 
 load_dotenv()
 openai.api_key = os.getenv("OPENAI_API_KEY")
@@ -44,9 +51,12 @@ sentiment_pipeline = pipeline("sentiment-analysis", model="nlptown/bert-base-mul
 
 summary_cache = {}
 
+<<<<<<< HEAD
 # WebSocket bağlantılarını tutacak set
 active_connections = set()
 
+=======
+>>>>>>> 878da1ff5e9189792151c7fcbc83a65882adb951
 def get_text_hash(text: str) -> str:
     return hashlib.sha256(text.encode("utf-8")).hexdigest()
 
@@ -135,6 +145,7 @@ async def summarize_text(request: TextRequest):
     except Exception as e:
         return {"error": str(e)}
 
+<<<<<<< HEAD
 @app.websocket("/ws/progress")
 async def websocket_endpoint(websocket: WebSocket):
     await websocket.accept()
@@ -157,13 +168,18 @@ async def broadcast_progress(progress: int, status: str):
         except:
             active_connections.remove(connection)
 
+=======
+>>>>>>> 878da1ff5e9189792151c7fcbc83a65882adb951
 @app.post("/analyze/")
 async def analyze_youtube_video(url: str = Form(...)):
     try:
         video_id = str(uuid.uuid4())
         audio_path = Path(AUDIO_DIR) / f"{video_id}.m4a"
 
+<<<<<<< HEAD
         await broadcast_progress(10, "Video indiriliyor...")
+=======
+>>>>>>> 878da1ff5e9189792151c7fcbc83a65882adb951
         ydl_opts = {
             'format': 'bestaudio[ext=m4a]/bestaudio/best',
             'outtmpl': str(audio_path),
@@ -176,20 +192,31 @@ async def analyze_youtube_video(url: str = Form(...)):
         if not audio_path.exists():
             return JSONResponse(content={"error": "Ses dosyası indirilemedi"}, status_code=400)
 
+<<<<<<< HEAD
         await broadcast_progress(30, "Ses dosyası transkript ediliyor...")
+=======
+>>>>>>> 878da1ff5e9189792151c7fcbc83a65882adb951
         whisper_result = model.transcribe(str(audio_path), language="tr")
         text = whisper_result["text"]
         language = whisper_result["language"]
 
+<<<<<<< HEAD
         await broadcast_progress(50, "Duygu analizi yapılıyor...")
+=======
+>>>>>>> 878da1ff5e9189792151c7fcbc83a65882adb951
         sentiment = sentiment_pipeline(text[:512])[0]
         sentiment_label = sentiment["label"]
         sentiment_score = sentiment["score"]
 
+<<<<<<< HEAD
         await broadcast_progress(70, "Metin özetleniyor...")
         final_summary = summarize_with_gpt_and_sentiment(text, sentiment_label, sentiment_score)
 
         await broadcast_progress(90, "Video analizi tamamlanıyor...")
+=======
+        final_summary = summarize_with_gpt_and_sentiment(text, sentiment_label, sentiment_score)
+
+>>>>>>> 878da1ff5e9189792151c7fcbc83a65882adb951
         video_type = "Podcast" if len(re.findall(r"\\b(sen|ben|biz|siz)\\b", text.lower())) > 10 else "Tek Anlatıcı"
         tone = "Tartışmalı" if "kadın" in text.lower() and "erkek" in text.lower() else "Nötr"
         participants = 2 if "sen" in text.lower() and "ben" in text.lower() else 1
@@ -209,8 +236,11 @@ async def analyze_youtube_video(url: str = Form(...)):
         except:
             pass
 
+<<<<<<< HEAD
         await broadcast_progress(100, "İşlem tamamlandı!")
         
+=======
+>>>>>>> 878da1ff5e9189792151c7fcbc83a65882adb951
         return {
             "transcript": text,
             "summary": final_summary,
@@ -223,7 +253,10 @@ async def analyze_youtube_video(url: str = Form(...)):
         }
 
     except Exception as e:
+<<<<<<< HEAD
         await broadcast_progress(0, f"Hata oluştu: {str(e)}")
+=======
+>>>>>>> 878da1ff5e9189792151c7fcbc83a65882adb951
         return JSONResponse(content={"error": str(e)}, status_code=500)
 
 if __name__ == "__main__":

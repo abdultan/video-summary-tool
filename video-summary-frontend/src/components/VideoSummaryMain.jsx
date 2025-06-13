@@ -1,6 +1,11 @@
+<<<<<<< HEAD
 import { useState, useEffect, useRef } from "react";
 import Chatbot from "./Chatbot";
 import ProgressBar from "./ProgressBar";
+=======
+import { useState } from "react";
+import Chatbot from "./Chatbot";
+>>>>>>> 878da1ff5e9189792151c7fcbc83a65882adb951
 
 function getYoutubeId(url) {
   const regExp =
@@ -17,6 +22,7 @@ export default function VideoSummaryMain() {
   const [result, setResult] = useState(null);
   const [error, setError] = useState("");
   const [showFullTranscript, setShowFullTranscript] = useState(false);
+<<<<<<< HEAD
   const [progress, setProgress] = useState(0);
   const [status, setStatus] = useState("");
   const wsRef = useRef(null);
@@ -29,12 +35,15 @@ export default function VideoSummaryMain() {
       }
     };
   }, []);
+=======
+>>>>>>> 878da1ff5e9189792151c7fcbc83a65882adb951
 
   const handleSubmit = async (e) => {
     e.preventDefault();
     setLoading(true);
     setError("");
     setResult(null);
+<<<<<<< HEAD
     setProgress(0);
     setStatus("Video işleniyor...");
 
@@ -57,13 +66,19 @@ export default function VideoSummaryMain() {
         setError("İlerleme takibi bağlantısında hata oluştu.");
       };
 
+=======
+    try {
+>>>>>>> 878da1ff5e9189792151c7fcbc83a65882adb951
       const formData = new FormData();
       formData.append("url", url);
       const res = await fetch("http://34.38.135.187:8000/analyze/", {
         method: "POST",
         body: formData,
       });
+<<<<<<< HEAD
 
+=======
+>>>>>>> 878da1ff5e9189792151c7fcbc83a65882adb951
       if (!res.ok) throw new Error("Sunucu hatası");
       const data = await res.json();
       setResult({
@@ -74,9 +89,12 @@ export default function VideoSummaryMain() {
       setError(
         "Bir hata oluştu. Lütfen geçerli bir YouTube linki girin veya daha sonra tekrar deneyin."
       );
+<<<<<<< HEAD
       if (wsRef.current) {
         wsRef.current.close();
       }
+=======
+>>>>>>> 878da1ff5e9189792151c7fcbc83a65882adb951
     }
     setLoading(false);
   };
@@ -153,11 +171,14 @@ export default function VideoSummaryMain() {
                 {loading ? "Yükleniyor..." : "Özetle"}
               </button>
             </form>
+<<<<<<< HEAD
             {loading && (
               <div className="mt-4">
                 <ProgressBar progress={progress} status={status} />
               </div>
             )}
+=======
+>>>>>>> 878da1ff5e9189792151c7fcbc83a65882adb951
             {error && (
               <div className="text-red-600 text-sm text-center mt-2">
                 {error}
