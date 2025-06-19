@@ -1,0 +1,12 @@
+transformers
+torch
+openai
+whisper
+yt-dlp
+fastapi
+uvicorn
+python-dotenv
+passlib
+python-jose
+sqlite3
+python-multipart
